@@ -1,0 +1,6 @@
+{
+  "name": "Wave Prediction & Coastal Alerts",
+  "description": "Full-stack ocean monitoring, machine learning wave prediction, interactive coastal risk mapping, automated alerts, and dataset/model management system.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
