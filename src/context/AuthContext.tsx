@@ -6,7 +6,7 @@ interface AuthContextType {
   token: string | null;
   isAuthenticated: boolean;
   isAdmin: boolean;
-  login: (email: string, pass: string, role?: UserRole) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, pass: string, role?: UserRole) => Promise<{ success: boolean; error?: string; user?: User; token?: string }>;
   register: (name: string, email: string, pass: string, confirmPass: string, org?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   updateUser: (updated: Partial<User>) => void;
@@ -37,27 +37,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(false);
   }, []);
 
-  const login = async (email: string, pass: string, role: UserRole = 'user'): Promise<{ success: boolean; error?: string }> => {
+  const login = async (email: string, pass: string, role: UserRole = 'user'): Promise<{ success: boolean; error?: string; user?: User; token?: string }> => {
     try {
+      const cleanEmail = email.trim();
       const endpoint = role === 'admin' ? '/api/auth/admin-login' : '/api/auth/login';
       const res = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password: pass }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({ email: cleanEmail, password: pass }),
       });
-      const data = await res.json();
+
+      let data: any = {};
+      const contentType = res.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = { error: res.ok ? undefined : `Server returned non-JSON response (${res.status})` };
+        }
+      }
 
       if (!res.ok) {
-        return { success: false, error: data.error || 'Login failed' };
+        return { success: false, error: data.error || 'Authentication failed. Please check your credentials.' };
       }
 
       setUser(data.user);
       setToken(data.token);
       localStorage.setItem('wave_auth_token', data.token);
       localStorage.setItem('wave_auth_user', JSON.stringify(data.user));
-      return { success: true };
+      return { success: true, user: data.user, token: data.token };
     } catch (err: any) {
-      return { success: false, error: err.message || 'Network error' };
+      return { success: false, error: err.message || 'Unable to reach authentication server. Please try again.' };
     }
   };
 
@@ -71,10 +87,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: JSON.stringify({ name, email, password: pass, confirmPassword: confirmPass, organization: org }),
       });
-      const data = await res.json();
+
+      let data: any = {};
+      const contentType = res.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = { error: res.ok ? undefined : `Server error (${res.status})` };
+        }
+      }
 
       if (!res.ok) {
         return { success: false, error: data.error || 'Registration failed' };

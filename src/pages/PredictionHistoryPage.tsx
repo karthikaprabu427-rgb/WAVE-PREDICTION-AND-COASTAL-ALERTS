@@ -26,10 +26,25 @@ export const PredictionHistoryPage: React.FC = () => {
 
   const fetchHistory = async () => {
     try {
-      const res = await fetch('/api/prediction-history');
+      const token = localStorage.getItem('wave_auth_token');
+      const headers: Record<string, string> = {
+        'Accept': 'application/json',
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const res = await fetch('/api/prediction-history', { headers });
       if (res.ok) {
         const data = await res.json();
-        setHistory(data.history || []);
+        const list = Array.isArray(data.history)
+          ? data.history
+          : Array.isArray(data.predictions)
+          ? data.predictions
+          : Array.isArray(data)
+          ? data
+          : [];
+        setHistory(list);
       }
     } catch (e) {
       console.error('Failed to load history:', e);
@@ -42,11 +57,13 @@ export const PredictionHistoryPage: React.FC = () => {
     fetchHistory();
   }, []);
 
-  const filteredHistory = history.filter((item) => {
-    const matchesRisk = riskFilter === 'ALL' || item.riskLevel === riskFilter;
+  const filteredHistory = (history || []).filter((item) => {
+    const matchesRisk = riskFilter === 'ALL' || (item.riskLevel || 'LOW') === riskFilter;
+    const loc = item.inputParams?.location || '';
+    const cat = item.predictedWaveCategory || '';
     const matchesSearch =
-      item.inputParams.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.predictedWaveCategory.toLowerCase().includes(searchQuery.toLowerCase());
+      loc.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      cat.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesRisk && matchesSearch;
   });
 
@@ -70,20 +87,20 @@ export const PredictionHistoryPage: React.FC = () => {
       'Timestamp',
     ];
 
-    const rows = history.map((item) => [
+    const rows = (history || []).map((item) => [
       item.id,
-      `"${item.inputParams.location}"`,
-      item.inputParams.latitude,
-      item.inputParams.longitude,
-      item.inputParams.waveHeight,
-      item.inputParams.wavePeriod,
-      item.inputParams.windSpeed,
-      item.inputParams.pressure,
-      item.predictedWaveHeight,
-      item.predictedWavePeriod,
-      `"${item.predictedWaveCategory}"`,
-      item.riskLevel,
-      item.confidenceScore,
+      `"${item.inputParams?.location || 'Unknown'}"`,
+      item.inputParams?.latitude ?? 0,
+      item.inputParams?.longitude ?? 0,
+      item.inputParams?.waveHeight ?? 0,
+      item.inputParams?.wavePeriod ?? 0,
+      item.inputParams?.windSpeed ?? 0,
+      item.inputParams?.pressure ?? 0,
+      item.predictedWaveHeight ?? 0,
+      item.predictedWavePeriod ?? 0,
+      `"${item.predictedWaveCategory || ''}"`,
+      item.riskLevel || 'LOW',
+      item.confidenceScore ?? 90,
       item.timestamp,
     ]);
 
@@ -184,29 +201,29 @@ export const PredictionHistoryPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {filteredHistory.map((item) => (
+                {(filteredHistory || []).map((item) => (
                   <tr key={item.id} className="hover:bg-slate-800/40 transition">
                     <td className="py-3.5 px-3">
-                      <div className="font-bold text-slate-200">{item.inputParams.location}</div>
+                      <div className="font-bold text-slate-200">{item.inputParams?.location || 'Custom Sector'}</div>
                       <div className="text-[10px] text-slate-400 font-mono">
-                        Lat: {item.inputParams.latitude}°, Lng: {item.inputParams.longitude}°
+                        Lat: {item.inputParams?.latitude ?? 0}°, Lng: {item.inputParams?.longitude ?? 0}°
                       </div>
                     </td>
                     <td className="py-3.5 px-3 font-mono text-slate-300">
-                      <div>{item.inputParams.windSpeed} km/h ({item.inputParams.windDirection})</div>
-                      <div className="text-[10px] text-slate-400">H_in: {item.inputParams.waveHeight}m</div>
+                      <div>{item.inputParams?.windSpeed ?? 0} km/h ({item.inputParams?.windDirection || 'N'})</div>
+                      <div className="text-[10px] text-slate-400">H_in: {item.inputParams?.waveHeight ?? 0}m</div>
                     </td>
                     <td className="py-3.5 px-3 font-mono font-bold text-cyan-300">
-                      {item.predictedWaveHeight.toFixed(2)} m
+                      {(item.predictedWaveHeight ?? 0).toFixed(2)} m
                     </td>
                     <td className="py-3.5 px-3 font-mono text-sky-300">
-                      {item.predictedWavePeriod.toFixed(1)} s
+                      {(item.predictedWavePeriod ?? 0).toFixed(1)} s
                     </td>
                     <td className="py-3.5 px-3">
-                      <RiskBadge level={item.riskLevel} size="sm" />
+                      <RiskBadge level={item.riskLevel || 'LOW'} size="sm" />
                     </td>
                     <td className="py-3.5 px-3 font-mono text-emerald-400">
-                      {item.confidenceScore}%
+                      {item.confidenceScore ?? 90}%
                     </td>
                     <td className="py-3.5 px-3 font-mono text-slate-400">
                       {new Date(item.timestamp).toLocaleString([], {

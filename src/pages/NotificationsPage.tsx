@@ -21,7 +21,7 @@ export const NotificationsPage: React.FC<NotificationsPageProps> = ({ onNavigate
   const { notifications, unreadCount, markAsRead, markAllAsRead, clearNotification } = useNotifications();
   const [filter, setFilter] = useState<'all' | 'unread' | 'danger' | 'warning'>('all');
 
-  const filteredNotifications = notifications.filter((notif) => {
+  const filteredNotifications = (notifications || []).filter((notif) => {
     if (filter === 'unread') return !notif.read;
     if (filter === 'danger') return notif.severity === 'danger';
     if (filter === 'warning') return notif.severity === 'warning';
@@ -77,7 +77,7 @@ export const NotificationsPage: React.FC<NotificationsPageProps> = ({ onNavigate
             filter === 'all' ? 'bg-cyan-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          All ({notifications.length})
+          All ({(notifications || []).length})
         </button>
         <button
           id="btn-notif-tab-unread"
@@ -86,7 +86,7 @@ export const NotificationsPage: React.FC<NotificationsPageProps> = ({ onNavigate
             filter === 'unread' ? 'bg-cyan-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          Unread ({unreadCount})
+          Unread ({unreadCount || 0})
         </button>
         <button
           id="btn-notif-tab-danger"
@@ -101,12 +101,12 @@ export const NotificationsPage: React.FC<NotificationsPageProps> = ({ onNavigate
 
       {/* Notification List */}
       <div className="space-y-3">
-        {filteredNotifications.length === 0 ? (
+        {(!filteredNotifications || filteredNotifications.length === 0) ? (
           <div className="p-12 rounded-3xl bg-slate-900/60 border border-slate-800 text-center text-slate-400 text-xs">
             No notifications in this category.
           </div>
         ) : (
-          filteredNotifications.map((notif) => (
+          (filteredNotifications || []).map((notif) => (
             <div
               key={notif.id}
               className={`p-4 sm:p-5 rounded-2xl border transition flex items-start justify-between gap-4 ${

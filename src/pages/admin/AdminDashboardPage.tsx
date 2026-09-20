@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { CoastalLocationSearch } from '../../components/CoastalLocationSearch';
 import {
   LayoutDashboard,
   Users,
@@ -14,6 +15,8 @@ import {
   ArrowRight,
   Sparkles,
   RefreshCw,
+  Search,
+  MapPin,
 } from 'lucide-react';
 
 interface AdminDashboardPageProps {
@@ -81,6 +84,28 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ onNaviga
             <span>Retrain ML Model</span>
           </button>
         </div>
+      </div>
+
+      {/* Coastal Station Quick Lookup & Inspection Search */}
+      <div className="p-5 rounded-3xl bg-slate-900/90 border border-purple-500/20 shadow-xl space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Search className="w-5 h-5 text-purple-400" />
+            <h2 className="text-base font-bold text-slate-100 font-heading">
+              Coastal Station &amp; Beach Quick Lookup
+            </h2>
+          </div>
+          <span className="text-xs text-purple-300 hidden sm:inline-flex items-center gap-1 font-mono">
+            <MapPin className="w-3.5 h-3.5" />
+            Direct Telemetry Inspector
+          </span>
+        </div>
+        <CoastalLocationSearch
+          onLocationSelected={() => {
+            onNavigate('dashboard');
+          }}
+          placeholder="Search any beach, port, buoy, or coastal station to inspect live telemetry..."
+        />
       </div>
 
       {/* 4 Stat Overview Cards */}

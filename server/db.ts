@@ -12,11 +12,35 @@ import {
 } from '../src/types';
 import { mlEngine } from './mlEngine';
 import { calculateCoastalRisk, defaultRiskThresholds } from './riskCalculator';
+import { simulateStationStep, StationDelta, STATION_BASELINES } from './simulationEngine';
+
+export interface TelemetryPoint {
+  time: string;
+  waveHeight: number;
+  windSpeed: number;
+  waterTemperature: number;
+  wavePeriod: number;
+  pressure: number;
+}
+
+export interface SearchedLocationRecord {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  region: string;
+  country?: string;
+  lastSearchedAt: string;
+  latestWaveHeight: number;
+  latestRiskLevel: RiskLevel;
+  dataSource: string;
+}
 
 export interface DBState {
   users: User[];
   passwords: Record<string, string>; // userId -> bcryptHash
   oceanConditions: OceanCondition[];
+  telemetryHistory: Record<string, TelemetryPoint[]>; // stationId -> history points
   predictions: PredictionResult[];
   alerts: CoastalAlert[];
   notifications: InAppNotification[];
@@ -24,6 +48,7 @@ export interface DBState {
   datasetRows: Record<string, any[]>; // datasetId -> rows
   modelVersions: MLModelVersion[];
   thresholds: RiskThresholds;
+  searchedLocations: SearchedLocationRecord[];
 }
 
 // In-memory Database with initial real-world data seeds
@@ -35,6 +60,7 @@ class DatabaseService {
       users: [],
       passwords: {},
       oceanConditions: [],
+      telemetryHistory: {},
       predictions: [],
       alerts: [],
       notifications: [],
@@ -42,6 +68,7 @@ class DatabaseService {
       datasetRows: {},
       modelVersions: [],
       thresholds: { ...defaultRiskThresholds },
+      searchedLocations: [],
     };
     this.seedDatabase();
   }
@@ -617,7 +644,7 @@ class DatabaseService {
     return user;
   }
 
-  // --- Ocean Conditions ---
+  // --- Ocean Conditions & Simulation ---
   public getOceanConditions(): OceanCondition[] {
     // Re-evaluate risk levels using current thresholds
     return this.state.oceanConditions.map((stn) => {
@@ -638,6 +665,159 @@ class DatabaseService {
 
   public getOceanConditionById(id: string): OceanCondition | undefined {
     return this.getOceanConditions().find((c) => c.id === id);
+  }
+
+  public upsertOceanCondition(station: OceanCondition): OceanCondition {
+    // Check if station exists by id or close proximity (within 3km / 0.03 deg)
+    const existingIndex = this.state.oceanConditions.findIndex(
+      (s) => s.id === station.id || (Math.abs(s.lat - station.lat) < 0.03 && Math.abs(s.lng - station.lng) < 0.03)
+    );
+
+    if (existingIndex >= 0) {
+      this.state.oceanConditions[existingIndex] = {
+        ...this.state.oceanConditions[existingIndex],
+        ...station,
+        lastUpdated: new Date().toISOString(),
+      };
+      // Add telemetry history point
+      const stn = this.state.oceanConditions[existingIndex];
+      if (!this.state.telemetryHistory[stn.id]) {
+        this.state.telemetryHistory[stn.id] = [];
+      }
+      this.state.telemetryHistory[stn.id].push({
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        waveHeight: stn.waveHeight,
+        windSpeed: stn.windSpeed,
+        waterTemperature: stn.waterTemperature,
+        wavePeriod: stn.wavePeriod,
+        pressure: stn.pressure,
+      });
+      if (this.state.telemetryHistory[stn.id].length > 30) {
+        this.state.telemetryHistory[stn.id].shift();
+      }
+      return stn;
+    } else {
+      // Prepend so new searched station appears prominently at top of list
+      this.state.oceanConditions.unshift(station);
+      this.state.telemetryHistory[station.id] = [
+        {
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          waveHeight: station.waveHeight,
+          windSpeed: station.windSpeed,
+          waterTemperature: station.waterTemperature,
+          wavePeriod: station.wavePeriod,
+          pressure: station.pressure,
+        },
+      ];
+      return station;
+    }
+  }
+
+  public recordSearchedLocation(rec: SearchedLocationRecord): void {
+    const existingIdx = this.state.searchedLocations.findIndex(
+      (l) => l.name.toLowerCase() === rec.name.toLowerCase() || (Math.abs(l.lat - rec.lat) < 0.04 && Math.abs(l.lng - rec.lng) < 0.04)
+    );
+    if (existingIdx >= 0) {
+      this.state.searchedLocations[existingIdx] = {
+        ...this.state.searchedLocations[existingIdx],
+        ...rec,
+        lastSearchedAt: new Date().toISOString(),
+      };
+    } else {
+      this.state.searchedLocations.unshift(rec);
+      if (this.state.searchedLocations.length > 25) {
+        this.state.searchedLocations.pop();
+      }
+    }
+  }
+
+  public getSearchedLocations(): SearchedLocationRecord[] {
+    return this.state.searchedLocations;
+  }
+
+  public simulateOceanConditionsStep(): {
+    stations: OceanCondition[];
+    deltas: Record<string, StationDelta>;
+    timestamp: string;
+  } {
+    const deltas: Record<string, StationDelta> = {};
+    const updatedStations: OceanCondition[] = [];
+
+    for (let i = 0; i < this.state.oceanConditions.length; i++) {
+      const stn = this.state.oceanConditions[i];
+      const previousRisk = stn.riskLevel;
+      const { updated, delta } = simulateStationStep(stn, this.state.thresholds);
+
+      this.state.oceanConditions[i] = updated;
+      updatedStations.push(updated);
+      deltas[stn.id] = delta;
+
+      // Track telemetry history (keep last 30 points)
+      if (!this.state.telemetryHistory[stn.id]) {
+        this.state.telemetryHistory[stn.id] = [];
+      }
+      this.state.telemetryHistory[stn.id].push({
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        waveHeight: updated.waveHeight,
+        windSpeed: updated.windSpeed,
+        waterTemperature: updated.waterTemperature,
+        wavePeriod: updated.wavePeriod,
+        pressure: updated.pressure,
+      });
+      if (this.state.telemetryHistory[stn.id].length > 30) {
+        this.state.telemetryHistory[stn.id].shift();
+      }
+
+      // If risk transitioned to CRITICAL or spiked sharply, generate auto-notification
+      if ((updated.riskLevel === 'CRITICAL' && previousRisk !== 'CRITICAL') || (updated.riskLevel === 'HIGH' && previousRisk === 'LOW')) {
+        this.createNotification({
+          title: `Hazard Escalation: ${stn.stationName}`,
+          message: `Real-time telemetry drift elevated risk level to ${updated.riskLevel}. Wave height: ${updated.waveHeight}m, Wind: ${updated.windSpeed} km/h.`,
+          type: 'risk_change',
+          severity: updated.riskLevel === 'CRITICAL' ? 'danger' : 'warning',
+          read: false,
+          link: '/risk-map',
+        });
+      }
+    }
+
+    return {
+      stations: updatedStations,
+      deltas,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  public resetOceanConditions(): OceanCondition[] {
+    for (let i = 0; i < this.state.oceanConditions.length; i++) {
+      const stn = this.state.oceanConditions[i];
+      const base = STATION_BASELINES[stn.id];
+      if (base) {
+        stn.waveHeight = base.waveHeight;
+        stn.windSpeed = base.windSpeed;
+        stn.waterTemperature = base.waterTemp;
+        stn.pressure = base.pressure;
+        stn.wavePeriod = base.wavePeriod;
+        stn.lastUpdated = new Date().toISOString();
+        const risk = calculateCoastalRisk(
+          stn.waveHeight,
+          stn.wavePeriod,
+          stn.windSpeed,
+          stn.pressure,
+          stn.currentSpeed,
+          this.state.thresholds
+        );
+        stn.riskLevel = risk.riskLevel;
+      }
+    }
+    return this.getOceanConditions();
+  }
+
+  public getTelemetryHistory(stationId?: string): Record<string, TelemetryPoint[]> | TelemetryPoint[] {
+    if (stationId) {
+      return this.state.telemetryHistory[stationId] || [];
+    }
+    return this.state.telemetryHistory;
   }
 
   // --- Predictions ---
@@ -695,10 +875,16 @@ class DatabaseService {
 
   // --- Notifications ---
   public getNotifications(userId?: string): InAppNotification[] {
+    if (!this.state || !Array.isArray(this.state.notifications)) {
+      return [];
+    }
     return this.state.notifications.filter((n) => !n.userId || n.userId === userId);
   }
 
   public createNotification(notifData: Omit<InAppNotification, 'id' | 'timestamp'>): InAppNotification {
+    if (!this.state.notifications) {
+      this.state.notifications = [];
+    }
     const newNotif: InAppNotification = {
       ...notifData,
       id: `notif-${Date.now()}-${Math.random().toString(36).substring(7)}`,
@@ -709,6 +895,7 @@ class DatabaseService {
   }
 
   public markNotificationAsRead(id: string): boolean {
+    if (!this.state || !Array.isArray(this.state.notifications)) return false;
     const notif = this.state.notifications.find((n) => n.id === id);
     if (notif) {
       notif.read = true;
@@ -718,6 +905,7 @@ class DatabaseService {
   }
 
   public markAllNotificationsAsRead(userId?: string): number {
+    if (!this.state || !Array.isArray(this.state.notifications)) return 0;
     let count = 0;
     for (const notif of this.state.notifications) {
       if (!userId || !notif.userId || notif.userId === userId) {
@@ -733,6 +921,10 @@ class DatabaseService {
   // --- Datasets ---
   public getDatasets(): DatasetInfo[] {
     return this.state.datasets;
+  }
+
+  public getDatasetById(id: string): DatasetInfo | undefined {
+    return this.state.datasets.find((d) => d.id === id);
   }
 
   public getDatasetRows(datasetId: string): any[] {
@@ -756,6 +948,14 @@ class DatabaseService {
   // --- Models ---
   public getModelVersions(): MLModelVersion[] {
     return this.state.modelVersions;
+  }
+
+  public activateModelVersion(id: string): MLModelVersion | null {
+    const target = this.state.modelVersions.find((m) => m.id === id);
+    if (!target) return null;
+    this.state.modelVersions.forEach((m) => (m.isActive = false));
+    target.isActive = true;
+    return target;
   }
 
   public addModelVersion(version: MLModelVersion) {

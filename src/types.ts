@@ -34,6 +34,43 @@ export interface OceanCondition {
   visibility: number; // in km
   riskLevel: RiskLevel;
   lastUpdated: string;
+  dataSource?: string;
+  dataStatus?: 'LIVE_DATA' | 'FORECAST' | 'SIMULATED';
+  country?: string;
+  weatherCondition?: string;
+  weatherCode?: number;
+  forecast?: Array<{ time: string; waveHeight: number; wavePeriod?: number; windSpeed?: number }>;
+  isCustomSearched?: boolean;
+}
+
+export interface LocationSearchResult {
+  id: string;
+  name: string;
+  displayName: string;
+  lat: number;
+  lng: number;
+  country?: string;
+  state?: string;
+  type?: string;
+}
+
+export interface LiveMarineDataResponse {
+  station: OceanCondition;
+  mlPrediction: {
+    predictedWaveHeight: number;
+    predictedWavePeriod: number;
+    predictedWaveCategory: string;
+    riskLevel: RiskLevel;
+    confidenceScore: number;
+    predictionTime: string;
+    explanation: string;
+    recommendedAction: string;
+  };
+  dataSource: string;
+  status: 'LIVE_DATA' | 'FORECAST' | 'SIMULATED';
+  lastUpdated: string;
+  isSimulated: boolean;
+  simulationReason?: string;
 }
 
 export interface PredictionInput {

@@ -1,5 +1,6 @@
 import React from 'react';
 import { WaveVisualizer } from '../components/WaveVisualizer';
+import { CoastalLocationSearch } from '../components/CoastalLocationSearch';
 import {
   Waves,
   ShieldCheck,
@@ -14,6 +15,7 @@ import {
   CheckCircle2,
   Database,
   Lock,
+  Search,
 } from 'lucide-react';
 
 interface LandingPageProps {
@@ -80,6 +82,27 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
                   <BrainCircuit size={18} />
                   <span>Predict Waves</span>
                 </button>
+              </div>
+
+              {/* Instant Beach & Coastal Location Search Bar */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-slate-900/80 border border-cyan-500/30 backdrop-blur-xl shadow-2xl space-y-3 max-w-xl text-left">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Search className="w-4 h-4 text-cyan-400" />
+                    <span className="text-xs sm:text-sm font-bold text-slate-100 font-heading">
+                      Search Any Beach or Coastal Location
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-cyan-400/80 font-mono hidden sm:inline">
+                    Live Marine Forecast
+                  </span>
+                </div>
+                <CoastalLocationSearch
+                  onLocationSelected={() => {
+                    onNavigate('dashboard');
+                  }}
+                  placeholder="Search any beach, coast, or port (e.g., Marina Beach, Goa, Miami, Mahabalipuram)..."
+                />
               </div>
 
               {/* Highlights pill row */}

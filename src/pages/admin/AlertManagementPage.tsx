@@ -263,7 +263,7 @@ export const AlertManagementPage: React.FC = () => {
               <div className="flex flex-wrap items-center justify-between gap-3 pt-2 text-[11px] font-mono text-slate-400">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span>Regions:</span>
-                  {alert.affectedRegions.map((r, i) => (
+                  {(alert.affectedRegions || []).map((r, i) => (
                     <span key={i} className="px-2 py-0.5 rounded bg-slate-950 text-slate-300 border border-slate-800">
                       {r}
                     </span>

@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
+import { OceanDataProvider } from './context/OceanDataContext';
+import { EmergencyAlertProvider } from './context/EmergencyAlertContext';
+import { EmergencyLightingOverlay } from './components/EmergencyLightingOverlay';
+import { EmergencyAlertModal } from './components/EmergencyAlertModal';
+import { EmergencyNotificationToast } from './components/EmergencyNotificationToast';
+import { EmergencyBridge } from './components/EmergencyBridge';
+import { EmergencyAlertTester } from './components/EmergencyAlertTester';
+import { LiveRadioBroadcastBanner } from './components/LiveRadioBroadcastBanner';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 
@@ -18,6 +26,8 @@ import { CoastalAlertsPage } from './pages/CoastalAlertsPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { PredictionHistoryPage } from './pages/PredictionHistoryPage';
+import { PublicAnnouncerPage } from './pages/PublicAnnouncerPage';
+import { PublicAnnouncerProvider } from './context/PublicAnnouncerContext';
 
 // Admin Pages
 import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
@@ -36,17 +46,47 @@ const MainAppContent: React.FC = () => {
 
   // Sync initial page based on URL hash or auth status
   useEffect(() => {
-    const hash = window.location.hash.replace('#', '');
-    if (hash) {
-      setCurrentPage(hash);
-    } else if (isAuthenticated) {
-      setCurrentPage(isAdmin ? 'admin-dashboard' : 'dashboard');
-    }
+    const handleHashSync = () => {
+      const hash = window.location.hash.replace('#', '');
+      if (hash) {
+        if (hash === 'admin-login' && isAdmin) {
+          setCurrentPage('admin-dashboard');
+          window.location.hash = 'admin-dashboard';
+        } else if (hash === 'login' && isAuthenticated) {
+          setCurrentPage(isAdmin ? 'admin-dashboard' : 'dashboard');
+          window.location.hash = isAdmin ? 'admin-dashboard' : 'dashboard';
+        } else {
+          setCurrentPage(hash);
+        }
+      } else if (isAuthenticated) {
+        setCurrentPage(isAdmin ? 'admin-dashboard' : 'dashboard');
+      }
+    };
+
+    handleHashSync();
+    window.addEventListener('hashchange', handleHashSync);
+    return () => window.removeEventListener('hashchange', handleHashSync);
   }, [isAuthenticated, isAdmin]);
 
   const handleNavigate = (page: string, params?: any) => {
+    // Check admin status from current state or storage fallback
+    let userIsAdmin = isAdmin;
+    if (!userIsAdmin) {
+      try {
+        const saved = localStorage.getItem('wave_auth_user');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed?.role === 'admin') {
+            userIsAdmin = true;
+          }
+        }
+      } catch (e) {
+        // ignore JSON parse error
+      }
+    }
+
     // Admin route protection
-    if (page.startsWith('admin') && !isAdmin && !['admin-login'].includes(page)) {
+    if (page.startsWith('admin') && !userIsAdmin && !['admin-login'].includes(page)) {
       setCurrentPage('admin-login');
       window.location.hash = 'admin-login';
       return;
@@ -88,6 +128,8 @@ const MainAppContent: React.FC = () => {
         return <RiskMapPage onNavigate={handleNavigate} />;
       case 'alerts':
         return <CoastalAlertsPage />;
+      case 'public-announcer':
+        return <PublicAnnouncerPage onNavigate={handleNavigate} />;
       case 'notifications':
         return <NotificationsPage onNavigate={handleNavigate} />;
       case 'analytics':
@@ -127,6 +169,9 @@ const MainAppContent: React.FC = () => {
       <div className="fixed bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-[160px] pointer-events-none z-0" />
       <div className="fixed top-[40%] right-[20%] w-[350px] h-[350px] bg-sky-500/5 rounded-full blur-[120px] pointer-events-none z-0" />
 
+      {/* Live Radio Broadcast Top Bar (Small Option at Top of Screen) */}
+      <LiveRadioBroadcastBanner />
+
       {/* Navigation Header */}
       <Navbar
         currentPage={currentPage}
@@ -165,7 +210,18 @@ export function App() {
   return (
     <AuthProvider>
       <NotificationProvider>
-        <MainAppContent />
+        <EmergencyAlertProvider>
+          <PublicAnnouncerProvider>
+            <OceanDataProvider>
+              <EmergencyBridge />
+              <EmergencyLightingOverlay />
+              <EmergencyAlertModal />
+              <EmergencyNotificationToast />
+              <EmergencyAlertTester />
+              <MainAppContent />
+            </OceanDataProvider>
+          </PublicAnnouncerProvider>
+        </EmergencyAlertProvider>
       </NotificationProvider>
     </AuthProvider>
   );

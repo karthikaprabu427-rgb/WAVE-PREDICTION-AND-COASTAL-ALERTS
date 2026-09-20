@@ -3,6 +3,7 @@ import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { apiRouter } from './server/routes';
+import { db } from './server/db';
 
 async function startServer() {
   const app = express();
@@ -24,6 +25,29 @@ async function startServer() {
       timestamp: new Date().toISOString(),
     });
   });
+
+  // Catch unhandled /api requests with a clean JSON 404 response instead of falling through to Vite/HTML
+  app.all(['/api', '/api/*'], (req, res) => {
+    res.status(404).json({ error: `API route ${req.method} ${req.path} not found` });
+  });
+
+  // Global API error handler to guarantee JSON responses for all /api endpoints
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (req.path.startsWith('/api')) {
+      console.error('API Error:', err);
+      return res.status(err.status || 500).json({ error: err.message || 'Internal Server Error' });
+    }
+    next(err);
+  });
+
+  // Start background simulation ticker (default 60s cycle for server-side telemetry evolution)
+  setInterval(() => {
+    try {
+      db.simulateOceanConditionsStep();
+    } catch (err) {
+      console.error('Simulation step error:', err);
+    }
+  }, 60000);
 
   // Vite middleware for development vs static build in production
   if (process.env.NODE_ENV !== 'production') {

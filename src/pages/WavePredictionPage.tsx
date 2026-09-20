@@ -3,6 +3,7 @@ import { OceanCondition, PredictionInput, PredictionResult } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { RiskBadge } from '../components/RiskBadge';
 import { WaveVisualizer } from '../components/WaveVisualizer';
+import { CoastalLocationSearch } from '../components/CoastalLocationSearch';
 import {
   BrainCircuit,
   Waves,
@@ -232,6 +233,32 @@ export const WavePredictionPage: React.FC<WavePredictionPageProps> = ({ onNaviga
             <span className="text-[11px] text-slate-400 font-mono">Geospatial Coordinates</span>
           </div>
 
+          {/* Dynamic Beach & Coast Search Bar */}
+          <div className="p-3.5 rounded-2xl bg-cyan-950/20 border border-cyan-800/40">
+            <label className="block text-xs font-semibold text-cyan-300 mb-1.5 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Search Any Beach / Coastal Location Worldwide (Auto-Populate Live Telemetry):</span>
+            </label>
+            <CoastalLocationSearch
+              onLocationSelected={(stn) => {
+                setLocation(stn.stationName);
+                setLatitude(stn.lat);
+                setLongitude(stn.lng);
+                setWaveHeight(stn.waveHeight);
+                setWavePeriod(stn.wavePeriod);
+                setWindSpeed(stn.windSpeed);
+                setWindDirection(stn.windDirection);
+                setWaveDirection(stn.waveDirection);
+                setWaterTemperature(stn.waterTemperature);
+                setPressure(stn.pressure);
+                setCurrentSpeed(stn.currentSpeed);
+                setCurrentDirection(stn.currentDirection);
+                setSelectedStationPreset(stn.id);
+              }}
+              placeholder="Search beach or coast (e.g. Marina Beach, Mahabalipuram, Rameswaram, Goa...)"
+            />
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
@@ -244,7 +271,7 @@ export const WavePredictionPage: React.FC<WavePredictionPageProps> = ({ onNaviga
                 className="w-full bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-xl px-3.5 py-2.5 font-semibold focus:outline-none focus:border-cyan-500"
               >
                 <option value="">-- Custom Coastal Location --</option>
-                {stations.map((stn) => (
+                {(stations || []).map((stn) => (
                   <option key={stn.id} value={stn.id}>
                     {stn.stationName}
                   </option>

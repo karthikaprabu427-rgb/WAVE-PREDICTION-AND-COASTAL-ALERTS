@@ -19,6 +19,7 @@ import {
   LogOut,
   ChevronRight,
   Radio,
+  Megaphone,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -50,6 +51,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'predict', label: 'ML Wave Prediction', icon: Waves, badge: 'AI' },
     { id: 'risk-map', label: 'Interactive Risk Map', icon: MapPin },
     { id: 'alerts', label: 'Coastal Alerts', icon: AlertTriangle },
+    { id: 'public-announcer', label: 'Beach Horns & Radio', icon: Megaphone, badge: 'PA' },
     { id: 'notifications', label: 'Notifications', icon: Bell, count: unreadCount },
     { id: 'analytics', label: 'Ocean Analytics', icon: BarChart3 },
     { id: 'history', label: 'Prediction History', icon: History },
@@ -60,6 +62,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'admin-dashboard', label: 'Command Overview', icon: LayoutDashboard },
     { id: 'admin-users', label: 'User Management', icon: Users },
     { id: 'admin-alerts', label: 'Alert Broadcasts', icon: AlertTriangle },
+    { id: 'public-announcer', label: 'Beach Horns & Radio', icon: Megaphone, badge: 'PA' },
     { id: 'admin-datasets', label: 'Dataset Manager', icon: Database },
     { id: 'admin-models', label: 'ML Models & Training', icon: BrainCircuit, badge: 'RF' },
     { id: 'admin-analytics', label: 'System Telemetry', icon: BarChart3 },

@@ -46,21 +46,46 @@ export const AnalyticsPage: React.FC = () => {
       });
   }, []);
 
-  const riskColors = {
+  const riskColors: Record<string, string> = {
     LOW: '#10b981',
     MODERATE: '#f59e0b',
     HIGH: '#f97316',
     CRITICAL: '#ef4444',
   };
 
-  const pieData = analytics?.riskDistribution
-    ? [
-        { name: 'Low Risk', value: analytics.riskDistribution.LOW, color: riskColors.LOW },
-        { name: 'Moderate Risk', value: analytics.riskDistribution.MODERATE, color: riskColors.MODERATE },
-        { name: 'High Risk', value: analytics.riskDistribution.HIGH, color: riskColors.HIGH },
-        { name: 'Critical Risk', value: analytics.riskDistribution.CRITICAL, color: riskColors.CRITICAL },
-      ]
-    : [];
+  // Safe parsing of risk distribution for PieChart
+  const pieData = React.useMemo(() => {
+    if (!analytics?.riskDistribution) return [];
+    if (Array.isArray(analytics.riskDistribution)) {
+      return analytics.riskDistribution.map((item: any) => ({
+        name: item.name ? `${item.name.charAt(0) + item.name.slice(1).toLowerCase()} Risk` : 'Unknown',
+        value: Number(item.count ?? item.value ?? 0),
+        color: item.color || riskColors[item.name as string] || '#06b6d4',
+      }));
+    }
+    if (typeof analytics.riskDistribution === 'object') {
+      return Object.entries(analytics.riskDistribution).map(([key, val]) => ({
+        name: `${key.charAt(0) + key.slice(1).toLowerCase()} Risk`,
+        value: Number(val || 0),
+        color: riskColors[key] || '#06b6d4',
+      }));
+    }
+    return [];
+  }, [analytics]);
+
+  const stationData = React.useMemo(() => {
+    const raw = analytics?.stationComparison || analytics?.stationComparisons || [];
+    if (!Array.isArray(raw)) return [];
+    return raw.map((item: any) => ({
+      name: item.name || item.station || 'Buoy',
+      waveHeight: Number(item.waveHeight || 0),
+      windSpeed: Number(item.windSpeed || 0),
+      period: Number(item.period || item.wavePeriod || 0),
+      risk: item.risk || item.riskLevel || 'LOW',
+    }));
+  }, [analytics]);
+
+  const summary = analytics?.summary || analytics?.stats || {};
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
@@ -105,7 +130,7 @@ export const AnalyticsPage: React.FC = () => {
             <Waves size={18} className="text-cyan-400" />
           </div>
           <p className="font-mono text-3xl font-extrabold text-cyan-300">
-            {analytics?.stats?.avgWaveHeight || 2.47} <span className="text-xs font-normal text-slate-400">m</span>
+            {summary.avgWaveHeight ?? 2.47} <span className="text-xs font-normal text-slate-400">m</span>
           </p>
           <span className="text-[11px] text-emerald-400 flex items-center gap-1">
             <TrendingUp size={12} />
@@ -119,7 +144,7 @@ export const AnalyticsPage: React.FC = () => {
             <ArrowUpRight size={18} className="text-red-400" />
           </div>
           <p className="font-mono text-3xl font-extrabold text-red-400">
-            {analytics?.stats?.maxWaveHeight || 4.8} <span className="text-xs font-normal text-slate-400">m</span>
+            {summary.maxWaveHeight ?? 4.8} <span className="text-xs font-normal text-slate-400">m</span>
           </p>
           <span className="text-[11px] text-red-300">Offshore Cyclone Sector</span>
         </div>
@@ -130,7 +155,7 @@ export const AnalyticsPage: React.FC = () => {
             <Wind size={18} className="text-amber-400" />
           </div>
           <p className="font-mono text-3xl font-extrabold text-amber-300">
-            {analytics?.stats?.avgWindSpeed || 36.8} <span className="text-xs font-normal text-slate-400">km/h</span>
+            {summary.avgWindSpeed ?? 36.8} <span className="text-xs font-normal text-slate-400">km/h</span>
           </p>
           <span className="text-[11px] text-amber-400/80">Moderate Gale Gusts</span>
         </div>
@@ -141,7 +166,7 @@ export const AnalyticsPage: React.FC = () => {
             <Activity size={18} className="text-purple-400" />
           </div>
           <p className="font-mono text-3xl font-extrabold text-purple-300">
-            {analytics?.stats?.totalPredictions || 38}
+            {summary.totalPredictions ?? 38}
           </p>
           <span className="text-[11px] text-purple-300">Model Pipeline v1.4</span>
         </div>
@@ -163,7 +188,7 @@ export const AnalyticsPage: React.FC = () => {
 
           <div className="h-72 w-full pt-2">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={analytics?.stationComparisons || []}>
+              <BarChart data={stationData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                 <XAxis
                   dataKey="name"
@@ -256,7 +281,7 @@ export const AnalyticsPage: React.FC = () => {
 
         <div className="h-72 w-full pt-2">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={analytics?.stationComparisons || []}>
+            <LineChart data={stationData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
               <XAxis dataKey="name" stroke="#64748b" fontSize={11} />
               <YAxis yAxisId="left" stroke="#06b6d4" fontSize={11} unit="m" />

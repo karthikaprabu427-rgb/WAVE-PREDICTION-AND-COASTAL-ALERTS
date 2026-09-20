@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { CoastalAlert } from '../types';
 import { RiskBadge } from '../components/RiskBadge';
+import { usePublicAnnouncer } from '../context/PublicAnnouncerContext';
+import { CoastalEmergencyAnnouncement } from '../components/CoastalEmergencyAnnouncement';
 import {
   AlertTriangle,
   Flame,
@@ -13,9 +15,12 @@ import {
   Calendar,
   AlertCircle,
   Radio,
+  Megaphone,
+  Square,
 } from 'lucide-react';
 
 export const CoastalAlertsPage: React.FC = () => {
+  const { isBroadcasting, activeSession, startBroadcast, stopBroadcast } = usePublicAnnouncer();
   const [alerts, setAlerts] = useState<CoastalAlert[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'resolved'>('all');
@@ -24,13 +29,16 @@ export const CoastalAlertsPage: React.FC = () => {
 
   const fetchAlerts = async () => {
     try {
-      const res = await fetch('/api/alerts');
-      if (res.ok) {
+      const res = await fetch('/api/alerts', {
+        headers: { Accept: 'application/json' },
+      });
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
         const data = await res.json();
         setAlerts(data.alerts || []);
       }
     } catch (e) {
-      console.error('Failed to fetch coastal alerts:', e);
+      console.warn('Could not load coastal alerts:', e);
     } finally {
       setLoading(false);
     }
@@ -40,7 +48,7 @@ export const CoastalAlertsPage: React.FC = () => {
     fetchAlerts();
   }, []);
 
-  const filteredAlerts = alerts.filter((alert) => {
+  const filteredAlerts = (alerts || []).filter((alert) => {
     const matchesStatus =
       statusFilter === 'all'
         ? true
@@ -48,17 +56,21 @@ export const CoastalAlertsPage: React.FC = () => {
         ? alert.active
         : !alert.active;
     const matchesSeverity =
-      severityFilter === 'all' || alert.severity.toLowerCase() === severityFilter.toLowerCase();
+      severityFilter === 'all' || (alert.severity || '').toLowerCase() === severityFilter.toLowerCase();
+    const affected = Array.isArray(alert.affectedRegions) ? alert.affectedRegions : [];
     const matchesSearch =
-      alert.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      alert.affectedRegions.some((r) => r.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      alert.description.toLowerCase().includes(searchQuery.toLowerCase());
+      (alert.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      affected.some((r) => r.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (alert.description || '').toLowerCase().includes(searchQuery.toLowerCase());
 
     return matchesStatus && matchesSeverity && matchesSearch;
   });
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
+      {/* Coastal Radio Broadcast & Emergency Public Announcement Console */}
+      <CoastalEmergencyAnnouncement forceVisible={true} />
+
       {/* Header Banner */}
       <div className="p-6 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -212,13 +224,63 @@ export const CoastalAlertsPage: React.FC = () => {
                   </span>
                   <p className="text-slate-300 leading-relaxed">{alert.instructions}</p>
                 </div>
+
+                {/* Beach Horn Speakers & Marine Radio Broadcast Bar */}
+                {alert.active && (
+                  <div className="p-3 rounded-2xl bg-cyan-950/30 border border-cyan-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2">
+                      <Megaphone size={16} className="text-cyan-400 shrink-0" />
+                      <div className="text-[11px]">
+                        <span className="font-semibold text-slate-200">
+                          Non-Smartphone Citizen Alert (Beach Horns &amp; VHF Ch 16)
+                        </span>
+                        <p className="text-slate-400">
+                          Announce to fishermen at sea and visitors on the beach in Tamil/English/Hindi
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isBroadcasting && activeSession?.location === alert.title) {
+                          stopBroadcast();
+                        } else {
+                          startBroadcast({
+                            location: (alert.affectedRegions && alert.affectedRegions[0]) || alert.title,
+                            hazardType: alert.riskLevel === 'CRITICAL' ? 'TSUNAMI' : 'HIGH_WAVE',
+                            lang: 'ta',
+                            playAudioOutLoud: true,
+                          });
+                        }
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition shrink-0 ${
+                        isBroadcasting && activeSession?.location === alert.title
+                          ? 'bg-red-600 hover:bg-red-500 text-white animate-pulse'
+                          : 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-sm'
+                      }`}
+                    >
+                      {isBroadcasting && activeSession?.location === alert.title ? (
+                        <>
+                          <Square size={12} />
+                          <span>Stop Horn Broadcast</span>
+                        </>
+                      ) : (
+                        <>
+                          <Megaphone size={12} />
+                          <span>Broadcast on Beach Horns</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Affected Regions and Timestamps Footer */}
               <div className="flex flex-wrap items-center justify-between gap-3 pt-2 text-xs text-slate-400">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-mono text-[11px] text-slate-400">Affected Sectors:</span>
-                  {alert.affectedRegions.map((region, idx) => (
+                  {(alert.affectedRegions || []).map((region, idx) => (
                     <span
                       key={idx}
                       className="px-2.5 py-0.5 rounded-lg bg-slate-950 text-slate-300 border border-slate-800 text-[11px] font-medium flex items-center gap-1"

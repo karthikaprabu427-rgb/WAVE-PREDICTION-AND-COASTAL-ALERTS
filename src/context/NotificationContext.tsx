@@ -19,17 +19,21 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const fetchNotifications = async () => {
     try {
-      const headers: Record<string, string> = {};
+      const headers: Record<string, string> = {
+        'Accept': 'application/json',
+      };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const res = await fetch('/api/notifications', { headers });
-      if (res.ok) {
+      const contentType = res.headers.get('content-type') || '';
+
+      if (res.ok && contentType.includes('application/json')) {
         const data = await res.json();
         setNotifications(data.notifications || []);
-        setUnreadCount(data.unreadCount || 0);
+        setUnreadCount(data.unreadCount ?? (data.notifications?.filter((n: InAppNotification) => !n.read).length || 0));
       }
     } catch (e) {
-      console.error('Failed to fetch notifications:', e);
+      console.warn('Unable to refresh notifications:', e);
     }
   };
 
@@ -41,29 +45,43 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const markAsRead = async (id: string) => {
     try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      await fetch(`/api/notifications/${id}/read`, { method: 'PUT', headers });
+      const res = await fetch(`/api/notifications/${id}/read`, { method: 'PUT', headers });
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
+        await res.json();
+      }
       setNotifications((prev) =>
         prev.map((n) => (n.id === id ? { ...n, read: true } : n))
       );
       setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch (e) {
-      console.error('Failed to mark read:', e);
+      console.warn('Unable to mark notification read:', e);
     }
   };
 
   const markAllAsRead = async () => {
     try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      await fetch('/api/notifications/read-all', { method: 'PUT', headers });
+      const res = await fetch('/api/notifications/read-all', { method: 'PUT', headers });
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
+        await res.json();
+      }
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
       setUnreadCount(0);
     } catch (e) {
-      console.error('Failed to mark all read:', e);
+      console.warn('Unable to mark all notifications read:', e);
     }
   };
 
